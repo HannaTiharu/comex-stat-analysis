@@ -1,5 +1,6 @@
 from airflow.sdk import dag, task
 from datetime import datetime
+import duckdb
 import requests
 import os
 import pandas as pd
@@ -55,10 +56,48 @@ def comex_stat_ingestion():
         print(f"Columns found: {list(df.columns)}")
         
         return "Check complete!"
+    
+    @task()
+    def transform_bronze_to_silver(csv_path):
+
+        # Definindo onde o Parquet vai morar
+        # Note que trocamos 'bronze' por 'silver' no caminho
+        silver_path = csv_path.replace('bronze', 'silver').replace('.csv', '.parquet')
+        
+        # Criando a pasta silver se ela não existir (prevenção!)
+        os.makedirs(os.path.dirname(silver_path), exist_ok=True)
+
+        print(f"Transforming {csv_path} to {silver_path}...")
+
+        # O SQL que faz tudo: Renomeia, Filtra e Converte
+        query = f"""
+            COPY (
+                SELECT 
+                    CO_ANO AS year,
+                    CO_MES AS month,
+                    SG_UF_NCM AS state,
+                    CO_PAIS AS country_code,
+                    VL_FOB AS value_usd,
+                    ROUND(VL_FOB * 5.25, 2) AS value_brl, 
+                    'IMPORT' AS flow_type
+                FROM read_csv_auto('{csv_path}', sep=';', encoding='latin-1')
+                WHERE VL_FOB > 0 -- Limpeza básica
+            ) TO '{silver_path}' (FORMAT 'PARQUET');
+        """
+        
+        duckdb.sql(query)
+        print(f"Silver layer success! File: {silver_path}")
+        return silver_path
 
 
-    path = download_comex_data()
-    check_bronze_data(path)
+    # 1. Baixa o dado
+    csv_file = download_comex_data()
+
+    # 2. Faz o check (opcional, mas bom pra log)
+    check_bronze_data(csv_file)
+
+    # 3. TRANSFORMA EM SILVER!
+    transform_bronze_to_silver(csv_file)
 
 
 comex_stat_ingestion()
