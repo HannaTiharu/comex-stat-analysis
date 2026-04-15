@@ -3,7 +3,6 @@
 [![Airflow](https://img.shields.io/badge/Apache_Airflow-017CEE?style=for-the-badge&logo=Apache-Airflow&logoColor=white)](https://airflow.apache.org/)
 [![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?style=for-the-badge&logo=duckdb&logoColor=black)](https://duckdb.org/)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)](https://pandas.pydata.org/)
 
 This project features a complete end-to-end ETL pipeline using Brazilian foreign trade open data (**Comex Stat**). The goal is to transform millions of raw records into **Bronze**, **Silver**, and **Gold** layers, uncovering market trends hidden within technical NCM (Nomenclature Common of the Mercosur) codes.
 
