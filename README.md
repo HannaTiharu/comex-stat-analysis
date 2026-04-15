@@ -60,5 +60,5 @@ The pipeline follows the **Medallion Architecture** to ensure data quality and s
 ---
 
 ## 🧑‍💻 Author
-**Hanna (Jô)** - Software Engineer & Data Enthusiast.
+**Hanna** - Software Engineer & Data Enthusiast.
 [LinkedIn](https://br.linkedin.com/in/hanna-tiharu) | [GitHub](https://github.com/HannaTiharu)
