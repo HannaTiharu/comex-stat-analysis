@@ -6,7 +6,7 @@ import matplotlib.animation as animation
 import matplotlib.ticker as ticker
 import os
 import pandas as pd
-from ncm.client import FetchNcm
+import seaborn as sns
 
 # Configurações de caminho
 BASE_PATH = "/usr/local/airflow/include/data/gold"
@@ -21,13 +21,13 @@ BASE_PATH = "/usr/local/airflow/include/data/gold"
 def comex_stat_gold_processing():
 
     @task()
-    def create_gold_summary(**context):
+    def create_ncm_summary_sp(**context):
 
         year = context['dag_run'].conf.get('target_year', context['data_interval_start'].year)
         output_path = f"/usr/local/airflow/include/data/gold/ncm_ranking_per_state_{year}.parquet"
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-        # 4. Faz a mágica no DuckDB
+        # Lista de NCMs de SP para o ano específico.
         duckdb.sql(f"""
             COPY(
                 SELECT 
@@ -72,12 +72,12 @@ def comex_stat_gold_processing():
             return None
         
         # --- LÓGICA DE CORES FIXAS ---
-        # Criamos um mapeamento: cada estado terá sempre a mesma cor da paleta Set3
+        # Cada estado terá sempre a mesma cor da paleta Set3
         unique_states = sorted(df['state'].unique())
         cmap = plt.get_cmap('Set3')
         state_colors = {state: cmap(i / len(unique_states)) for i, state in enumerate(unique_states)}
             
-        # --- Configurações de Design (Modo Suave) ---
+        # --- Configurações de Design ---
         plt.style.use('seaborn-v0_8-whitegrid') # Um estilo claro, limpo e com grade suave
         fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
         fig.patch.set_facecolor('white') # Garante que o fundo da figura é branco
@@ -95,17 +95,15 @@ def comex_stat_gold_processing():
         
         formatter = plt.FuncFormatter(format_usd_billions)
 
-        # --- A Mágica do Desenho (Suave e Colorido) ---
         def update(year):
             ax.clear()
             dff = df[df['year'] == year].head(10).iloc[::-1]
             
             # Atribui a cor fixa do estado
             colors = [state_colors[state] for state in dff['state']]
-            
             bars = ax.barh(dff['state'], dff['total_usd'], color=colors, edgecolor='#AAAAAA', linewidth=0.5)
             
-            # --- O ANO GIGANTE NO FUNDO (A sua referência!) ---
+            # --- O ANO GIGANTE NO FUNDO ---
             ax.text(0.95, 0.2, f'{year}', 
                     transform=ax.transAxes, 
                     fontsize=80, 
@@ -139,19 +137,19 @@ def comex_stat_gold_processing():
             
             # Customização do Eixo X e Y (Letras Pretas e Suaves)
             ax.xaxis.set_major_formatter(formatter)
-            ax.set_xlabel('Total Importado (USD)', fontsize=10, color='#555555')
+            ax.set_xlabel('Total Importado (USD em Bilhões)', fontsize=10, color='#555555')
             
             # Configura o básico (tamanho e cor) para ambos
             ax.tick_params(axis='x', labelsize=9, labelcolor='#555555')
             ax.tick_params(axis='y', labelsize=12, labelcolor='black')
             
-            # Remove Eixo Y (Labels agora estão nas barras) e bordas
+            # Remove Eixo Y (Labels estão nas barras) e bordas
             ax.set_yticks([]) # Remove os labels 'SP', 'RJ' do eixo
             for spine in ['top', 'right', 'left']: ax.spines[spine].set_visible(False)
             ax.grid(axis='x', linestyle='--', alpha=0.3, color='#DDDDDD')
             ax.set_axisbelow(True) # Grade fica atrás das barras e do texto gigante
             
-            # Remove as bordas do gráfico (deixa mais limpo)
+            # Remove as bordas do gráfico 
             for spine in ['top', 'right']:
                 ax.spines[spine].set_visible(False)
                 
@@ -162,15 +160,88 @@ def comex_stat_gold_processing():
         
         # Salva como GIF (mais fácil para o LinkedIn)
         output = "/usr/local/airflow/include/data/graphics/annual_race.gif"
-        ani.save(output, writer='pillow')
+        ani.save(output, writer='ffmpeg')
         return output
+    
+
+    @task()
+    def create_temporal_serie_sp_ncm_30043929(wait_path):    
+        """
+        Cria a série temporal de SP para o NCM 30043929 (NCM que inclui o medicamento GLP-1):
+            Entram medicamentos prontos para uso que contêm hormônios de base proteica ou polipeptídica (exceto insulinas), 
+            como os modernos análogos de GLP-1 para diabetes e obesidade.
+        """    
+        # 1. Leitura dos dados da Gold usando DuckDB
+        # O DuckDB lê todos os arquivos da pasta Gold de uma vez
+        query = """
+            SELECT 
+                year, 
+                SUM(total_usd) as total_usd_millions
+            FROM read_parquet('/usr/local/airflow/include/data/gold/*.parquet')
+            WHERE ncm_code = '30043929'
+            GROUP BY year
+            ORDER BY year ASC
+        """
+        df = duckdb.query(query).to_df()
+
+        if df.empty:
+            print("Nenhum dado encontrado para o NCM 30043929.")
+            return None
+
+        # --- Configuração Visual ---
+        plt.style.use('seaborn-v0_8-whitegrid')
+        fig, ax = plt.subplots(figsize=(12, 6), dpi=120)
+        fig.patch.set_facecolor('#FAFAFA')
+        ax.set_facecolor('#FAFAFA')
+
+        # Plotagem da linha com gradiente ou sombra (estilo moderno)
+        line, = ax.plot(df['year'], df['total_usd_millions'], 
+                        color='#2E7D32', marker='o', linewidth=3, 
+                        markersize=8, markerfacecolor='white', markeredgewidth=2)
+
+        # Preenchimento suave abaixo da linha (Area Chart)
+        ax.fill_between(df['year'], df['total_usd_millions'], color='#4CAF50', alpha=0.1)
+
+        # --- Títulos e Rótulos ---
+        ax.set_title(f'Importação de NCM 3004.39.29 pelo Estado de SP ({df["year"].min()}-{df["year"].max()})', 
+                    fontsize=16, fontweight='bold', pad=20, color='#333333')
+        ax.set_xlabel('Ano', fontsize=12, color='#666666')
+        ax.set_ylabel('Valor Total (USD em Milhões)', fontsize=12, color='#666666')
+
+        # Ajuste de eixos para anos inteiros
+        ax.set_xticks(df['year'])
+        
+        # Limpeza de bordas (Spines)
+        for spine in ['top', 'right', 'left']:
+            ax.spines[spine].set_visible(False)
+
+        # Adicionando rótulos de valores sobre os pontos
+        for x, y in zip(df['year'], df['total_usd_millions']):
+            ax.annotate(f'US$ {y:.1f}M', 
+                        xy=(x, y), xytext=(0, 10), 
+                        textcoords='offset points', ha='center', 
+                        fontsize=10, fontweight='bold', color='#2E7D32')
+
+        plt.tight_layout()
+        
+        # Salva o resultado
+        output_img = "/usr/local/airflow/include/data/graphics/ncm_30043929_series.png"
+        os.makedirs(os.path.dirname(output_img), exist_ok=True)
+        plt.savefig(output_img, facecolor=fig.get_facecolor())
+        print(f"Série temporal salva em: {output_img}")
+        
+        return output_img
 
     
     # Gold
-    create_gold_summary()
+    ncm_summary = create_ncm_summary_sp()
 
-    # cria o grafico  
+    # cria o gif da corrida dos estados
     create_annual_bar_chart_race()
+
+    # cria a serie temporal de SP para o ncm 30043929
+    create_temporal_serie_sp_ncm_30043929(ncm_summary)
+
 
 
 comex_stat_gold_processing()

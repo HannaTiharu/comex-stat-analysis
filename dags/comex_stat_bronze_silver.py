@@ -116,8 +116,8 @@ def comex_stat_ingestion():
     # Task para chamar a DAG Gold
     trigger_gold = TriggerDagRunOperator(
         task_id="trigger_comex_stat_gold",
-        trigger_dag_id="comex_stat_gold", # O dag_id que está no outro arquivo
-        wait_for_completion=True, # Espera a Gold terminar antes de dar essa como sucesso
+        trigger_dag_id="comex_stat_gold",
+        wait_for_completion=False, 
         conf={"target_year": "{{ data_interval_start.year }}"}
     )
     parquet_silver >> trigger_gold
